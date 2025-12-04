@@ -1,6 +1,6 @@
 // src/components/FiniteWellSimulator.tsx
 import { useState } from "react";
-import { getFiniteWellPlot } from "../api/quantum";
+import { getFiniteWellPlot, getInfiniteWellPlot } from "../api/quantum";
 
 export default function FiniteWellSimulator() {
   const [U0, setU0] = useState(50); // eV
@@ -12,16 +12,28 @@ export default function FiniteWellSimulator() {
   const [particle, setParticle] = useState("electron");
   const [L_nm, setL_nm] = useState(1);
 
+  
+
+
   async function update() {
     const L_m = L_nm * 1e-9;
+
     let mass = 9.109e-31;
-    if (particle === "electron") mass = 9.109e-31;
     if (particle === "muon") mass = 206.768 * 9.109e-31;
     if (particle === "proton") mass = 1.6726219e-27;
 
-    const imgUrl = await getFiniteWellPlot(mass, L_m, U0, n);
-    setImage(imgUrl);
-  }
+    let imgUrl = null;
+
+    if (wellType === "finite") {
+      imgUrl = await getFiniteWellPlot(mass, L_m, U0, n);
+    }
+
+    if (wellType === "infinite") {
+      imgUrl = await getInfiniteWellPlot(mass, L_m, n);
+    }
+
+  setImage(imgUrl);
+}
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100%", padding: "0" }}>
@@ -55,7 +67,7 @@ export default function FiniteWellSimulator() {
 
         {/* Length (L nm slider) */}
         <label>Довжина ями L (нм):</label>
-        <input type="range" min={0.1} max={100} step={0.1} value={L_nm}
+        <input type="range" min={0.1} max={1.5} step={0.1} value={L_nm}
           onChange={(e) => setL_nm(Number(e.target.value))}
         />
         <div>{L_nm.toFixed(2)} нм</div>
