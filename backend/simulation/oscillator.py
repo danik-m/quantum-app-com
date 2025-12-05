@@ -1,141 +1,119 @@
-import streamlit as st
 import numpy as np
+import matplotlib
+matplotlib.use('Agg') # Для роботи на сервері без вікна
 import matplotlib.pyplot as plt
 import math
+import io
 from scipy.special import hermite, factorial
+from scipy import constants
 
-# Попытка импорта утилит (для работы и как модуль, и отдельно)
-try:
-    from .utils import HBAR, EV, M_E, plot_setup, draw_arrow
-except ImportError:
-    from utils import HBAR, EV, M_E, plot_setup, draw_arrow
+# --- КОНСТАНТИ ---
+HBAR = constants.hbar
+M_E = constants.m_e
+EV = constants.electron_volt
+
+# Стиль
+plt.style.use('default')
+
 # --- МАТЕМАТИКА ---
 
 def calc_harmonic_energy(omega, n):
     """E_n = hbar * omega * (n + 0.5)"""
     return HBAR * omega * (n + 0.5)
 
-def solve_oscillator(omega, m, n_max=10):
-    """Список энергий"""
-    return [calc_harmonic_energy(omega, n) for n in range(n_max + 1)]
-
 def psi_oscillator(x, m, omega, n):
-    """Хвильова функція (Ерміт)"""
-    alpha = np.sqrt(m * omega / HBAR)
-    xi = alpha * x
-    if n > 50: n = 50
-    norm_coef = 1.0 / np.sqrt((2**n) * math.factorial(n)) * np.sqrt(alpha / np.sqrt(np.pi))
+    """Хвильова функція (Поліноми Ерміта)"""
+    # alpha = 1 / x_0, де x_0 = sqrt(hbar / (m*omega))
+    # x_0 - характеристична довжина осцилятора
+    val = np.sqrt(m * omega / HBAR)
+    xi = val * x
+    
+    # Нормувальний коефіцієнт: N_n = 1 / sqrt(2^n * n! * sqrt(pi) * x_0)
+    # Оскільки val = 1/x_0, то sqrt(val/sqrt(pi)) коректно.
+    
+    # Захист від переповнення факторіалу для великих n
+    if n > 100: n = 100
+    
+    norm_coef = 1.0 / np.sqrt((2**n) * math.factorial(n)) * np.sqrt(val / np.sqrt(np.pi))
+    
     Hn = hermite(n)
     psi = norm_coef * np.exp(-0.5 * xi**2) * Hn(xi)
-    return np.real(psi)
+    return psi
 
 # --- ВІЗУАЛІЗАЦІЯ ---
 
-def run_oscillator_sim(params):
-    st.markdown("## 〰️ Гармонічний Осцилятор")
+def plot_harmonic_oscillator(m, omega, n):
+    # Розрахунок енергії
+    E_n = calc_harmonic_energy(omega, n)
     
-    # --- ОПИС ТА ТЕОРІЯ (НОВЕ!) ---
-    with st.expander("📚 Що це таке? (Теорія та приклади)", expanded=False):
-        st.markdown(r"""
-        **Квантовий гармонічний осцилятор** — це одна з найважливіших моделей у квантовій механіці. Вона описує частинку, що знаходиться в параболічному потенціалі $U(x) = \frac{1}{2}m\omega^2 x^2$.
-        
-        ### 🔹 Основні властивості:
-        1.  **Квантування енергії:** Рівні енергії розташовані на рівних відстанях:
-            $$ E_n = \hbar \omega \left(n + \frac{1}{2}\right) $$
-        2.  **Нульова енергія:** Навіть при $n=0$ енергія не дорівнює нулю ($E_0 = \hbar\omega/2$). Це наслідок принципу невизначеності.
-        3.  **Тунелювання:** Хвильова функція проникає в класично заборонену область (за межі параболи).
+    # Класичні точки повороту: E = 0.5 * m * w^2 * x^2  => x = sqrt(2E / mw^2)
+    if m > 0 and omega > 0:
+        x_turn = np.sqrt(2.0 * E_n / (m * omega**2))
+    else:
+        x_turn = 1e-9
 
-        ### 🔹 Приклади в природі:
-        * **Коливання атомів у молекулах** (наприклад, двоатомна молекула як пружинка).
-        * **Фонони** (коливання кристалічної ґратки).
-        * **Електромагнітне поле** в квантовій оптиці (фотони).
-        """)
+    # Межі графіка (трохи ширше за класичну область, щоб бачити "хвости" хвилі)
+    # Для вищих рівнів амплітуда росте, беремо запас
+    x_lim = x_turn * 3.5 if n == 0 else x_turn * 1.8
+    x = np.linspace(-x_lim, x_lim, 1000)
 
-    # --- ГРАФІК ---
-    omega, m = params['omega'], params['m']
-    energies = solve_oscillator(omega, m, 10)
-    
-    n_viz = st.slider("Оберіть квантовий рівень n", 0, 5, 0, key="osc_n_slider_internal")
-    E_n = energies[n_viz]
-    
-    st.success(f"Рівень n={n_viz}: E = {E_n:.4e} Дж ({E_n/EV:.4f} еВ)")
-    
-    # Темний стиль для графіка (як на скріншоті)
-    plt.style.use('dark_background')
+    # Потенціал
+    U = 0.5 * m * omega**2 * x**2
+
+    # Хвильова функція
+    psi = psi_oscillator(x, m, omega, n)
+    prob = psi**2
+
+    # --- Побудова Графіка ---
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Колір фону самого графіка і фігури
-    fig.patch.set_facecolor('#0e1117') 
+    # Налаштування стилю (Темний)
     ax.set_facecolor('#0e1117')
+    fig.patch.set_facecolor('#0e1117')
+    ax.tick_params(colors='white')
+    for spine in ax.spines.values():
+        spine.set_color('white')
+    ax.grid(True, linestyle=':', alpha=0.3, color='gray')
     
-    # Межі
-    if m > 0 and omega > 0 and E_n > 0:
-        x_turn = np.sqrt(2.0 * E_n / (m * omega**2))
-        x_turn_max = np.sqrt(2.0 * energies[-1] / (m * omega**2))
-    else:
-        x_turn, x_turn_max = 1e-9, 1e-9
-        
-    x_lim = max(x_turn_max * 1.3, 1e-10)
-    x = np.linspace(-x_lim, x_lim, 800)
-    
-    # Потенціал (Біла лінія)
-    U = 0.5 * m * omega**2 * x**2
+    ax.set_title(f"Гармонічний Осцилятор (n={n})", color='white', fontsize=14)
+    ax.set_xlabel("x (м)", color='white')
+    ax.set_ylabel("Енергія / Ψ", color='white')
+
+    # 1. Потенціал
     ax.plot(x, U, color='white', linewidth=2, label='U(x)')
     
-    # Хвиля
-    psi = psi_oscillator(x, m, omega, n_viz)
-    
-    # Масштабування хвилі, щоб вона гарно виглядала на фоні енергії
-    scale = (energies[1] - energies[0]) * 0.8
-    psi_plot = E_n + psi / np.max(np.abs(psi)) * scale
-    prob_plot = E_n + (psi**2) / np.max(psi**2) * scale
+    # 2. Рівень енергії
+    ax.hlines(E_n, -x_lim, x_lim, colors='red', linestyles='--', linewidth=1.5, label=f'E_{n} = {E_n/EV:.3f} еВ')
 
-    # Лінії
-    ax.plot(x, psi_plot, label=r'$\Psi$', color='cyan', linewidth=2)
-    ax.plot(x, prob_plot, label=r'$|\Psi|^2$', color='magenta', linestyle=':', linewidth=2)
+    # 3. Масштабування хвильової функції для відображення на фоні енергії
+    # Знаходимо "висоту" для малювання: приблизно відстань між рівнями hbar*omega
+    hw = HBAR * omega
+    scale = hw * 0.6
     
-    # Заливка під квадратом модуля (пурпурна, напівпрозора)
+    # Нормуємо psi для візуалізації, щоб максимум був ~scale
+    psi_max = np.max(np.abs(psi))
+    if psi_max > 0:
+        psi_plot = E_n + (psi / psi_max) * scale
+        prob_plot = E_n + (prob / np.max(prob)) * scale
+    else:
+        psi_plot = E_n + psi
+        prob_plot = E_n + prob
+
+    # 4. Малювання хвилі
+    ax.plot(x, psi_plot, color='cyan', linewidth=2, label=r'$\Psi(x)$')
+    ax.plot(x, prob_plot, color='magenta', linestyle=':', linewidth=2, label=r'$|\Psi|^2$')
+    
+    # Заливка ймовірності
     ax.fill_between(x, E_n, prob_plot, color='magenta', alpha=0.2)
-    
-    # Рівень енергії (червоний пунктир)
-    ax.hlines(E_n, -x_lim, x_lim, colors='red', linestyles='--', linewidth=1, label=f'E_{n_viz}')
-    
-    # Стрілка ширини (2A)
-    draw_arrow(ax, -x_turn, x_turn, E_n * 1.05, f"2A={2.0 * x_turn:.1e} м", color='white')
 
-    # Налаштування осей (білі підписи)
-    ax.set_xlabel("x (м)", color='white', fontsize=12)
-    ax.set_ylabel("Енергія / Ψ", color='white', fontsize=12)
-    ax.set_title(f"Гармонічний Осцилятор (n={n_viz})", color='white', fontsize=14)
+    # Ліміти Y
+    ax.set_ylim(0, E_n + hw * 1.5)
     
-    # Колір поділок
-    ax.tick_params(axis='x', colors='white')
-    ax.tick_params(axis='y', colors='white')
-    
-    # Рамка (spines)
-    for spine in ax.spines.values():
-        spine.set_edgecolor('white')
-
     ax.legend(loc='upper right', facecolor='#0e1117', labelcolor='white')
-    st.pyplot(fig)
 
-# --- ГОЛОВНА ФУНКЦІЯ МОДУЛЯ ---
-
-def main():
-    st.set_page_config(page_title="Гармонічний Осцилятор", layout="wide")
-    st.sidebar.header("Налаштування")
-    
-    from scipy import constants
-    
-    p_name = st.sidebar.selectbox("Частинка:", ["Електрон", "Протон", "Мюон"], key="osc_p")
-    mass_map = {"Електрон": constants.m_e, "Протон": constants.m_p, "Мюон": constants.m_e * 207}
-    
-    params = {}
-    params['m'] = float(mass_map[p_name])
-    params['omega'] = st.sidebar.number_input("Частота ω (рад/с)", value=5e15, format="%.2e", step=1e14, key="osc_w")
-    
-    if st.sidebar.button("Розрахувати", key="osc_btn"):
-        run_oscillator_sim(params)
-
-if __name__ == "__main__":
-    main()
+    # Збереження в байт-потік
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
