@@ -25,6 +25,10 @@ from simulation.oscillator import plot_harmonic_oscillator
 app = FastAPI()
 # 6. Експеримент Белла (глобальний об'єкт bell_sim)
 from simulation.bell import calculate_bell_outcome
+from simulation.stern_gerlach import generate_atom_batch
+
+
+from simulation.centrifugal import calculate_centrifugal_physics
 
 # --------------------
 # CORS (ОБОВ'ЯЗКОВО!)
@@ -182,9 +186,32 @@ async def oscillator_plot(
     except Exception as e:
         return {"error": str(e)}
     
+    # ==========================================
+# 6. STERN-GERLACH (НОВЕ)
+# ==========================================
+@app.get("/stern-gerlach/shoot")
+async def shoot_stern_gerlach(batch_size: int = 10, gradient: float = 1000.0):
+    """Генерує партію атомів для симуляції Штерна-Герлаха"""
+    return generate_atom_batch(batch_size, gradient)
+    
 
 # --- BELL EXPERIMENT (3D) ---
 @app.get("/bell/run")
 async def run_bell(angle_a: float = 0.0, angle_b: float = 45.0):
     # Повертає результат вимірювання (JSON)
     return calculate_bell_outcome(angle_a, angle_b)
+
+# ==========================================
+# 6. КЛАСИЧНА ФІЗИКА (НОВЕ)
+# ==========================================
+@app.get("/classic/centrifugal")
+async def calc_centrifugal(
+    mass: float, 
+    mass_unit: str, 
+    radius: float, 
+    radius_unit: str, 
+    velocity: float, 
+    velocity_unit: str
+):
+    """Калькулятор відцентрової сили"""
+    return calculate_centrifugal_physics(mass, mass_unit, radius, radius_unit, velocity, velocity_unit)
