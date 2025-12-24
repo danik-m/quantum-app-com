@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-export default function SchrodingerPage() {
+export default function ModelProblemsPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#0a0f24", color: "white", padding: "40px" }}>
       
@@ -13,7 +13,7 @@ export default function SchrodingerPage() {
           Лабораторія Шредінгера
         </h1>
         <p style={{ fontSize: "1.2rem", color: "#8b949e", maxWidth: "700px", margin: "0 auto" }}>
-          Оберіть тип квантової системи для моделювання. Ви можете дослідити стаціонарні стани в ямах, розсіювання на бар'єрах або еволюцію хвильового пакету в часі.
+          Оберіть тип квантової системи для моделювання.
         </p>
       </header>
 
@@ -25,7 +25,7 @@ export default function SchrodingerPage() {
         margin: "0 auto" 
       }}>
 
-        {/* --- КАРТКА 1: ПОТЕНЦІАЛЬНІ ЯМИ --- */}
+        {/* 1. ПОТЕНЦІАЛЬНІ ЯМИ */}
         <SimulationCard 
           title="📦 Потенціальні Ями"
           desc="Дослідження зв'язаних станів електрона у кінцевій та нескінченній ямах. Енергетичні рівні та хвильові функції."
@@ -34,7 +34,7 @@ export default function SchrodingerPage() {
           icon="📊"
         />
 
-        {/* --- КАРТКА 2: КВАНТОВІ БАР'ЄРИ --- */}
+        {/* 2. КВАНТОВІ БАР'ЄРИ */}
         <SimulationCard 
           title="🚧 Квантові Бар'єри"
           desc="Моделювання тунельного ефекту та надбар'єрного відбиття. Сходинка, прямокутний та подвійний бар'єри."
@@ -43,7 +43,7 @@ export default function SchrodingerPage() {
           icon="🧱"
         />
 
-        {/* --- КАРТКА 3: ХВИЛЬОВИЙ ПАКЕТ --- */}
+        {/* 3. ХВИЛЬОВИЙ ПАКЕТ */}
         <SimulationCard 
           title="🌊 Хвильовий Пакет"
           desc="Анімація руху гаусового хвильового пакету. Спостерігайте за розпливанням та інтерференцією в реальному часі."
@@ -51,13 +51,23 @@ export default function SchrodingerPage() {
           color="#58a6ff" // Blue
           icon="🎬"
         />
-         {/* 4. ОСЦИЛЯТОР (НОВЕ) */}
+        
+        {/* 4. ГАРМОНІЧНИЙ ОСЦИЛЯТОР */}
         <SimulationCard
           title="〰️ Гармонічний Осцилятор"
           desc="Квантування енергії в параболічному потенціалі. Поліноми Ерміта та нульові коливання."
           link="/simulation/oscillator"
-          color="#d2a8ff"
+          color="#d2a8ff" // Purple
           icon="🧲"
+        />
+
+        {/* 5. АТОМ ВОДНЮ (НОВИЙ) */}
+        <SimulationCard
+          title="⚛️ Атом Водорода"
+          desc="Радіальне рівняння Шредінгера. Енергетичні рівні E_n та радіальні хвильові функції R_nl."
+          link="/simulation/hydrogen"
+          color="#ffa657" // Orange
+          icon="🎯"
         />
 
       </div>
@@ -65,7 +75,7 @@ export default function SchrodingerPage() {
   );
 }
 
-// Компонент картки для чистоти коду
+// Компонент картки
 function SimulationCard({ title, desc, link, color, icon }: { title: string, desc: string, link: string, color: string, icon: string }) {
   return (
     <Link to={link} style={{ textDecoration: "none" }}>
@@ -79,7 +89,8 @@ function SimulationCard({ title, desc, link, color, icon }: { title: string, des
         cursor: "pointer",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between"
+        justifyContent: "space-between",
+        boxSizing: "border-box"
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-5px)";

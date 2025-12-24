@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
-import NavCard from "../../components/NavCard"; // Виправлено шлях (../../)
+import NavCard from "../../components/NavCard"; 
 
 export default function MechanicsPage() {
   return (
     <div style={{ padding: "40px", maxWidth: "1200px", margin: "0 auto", minHeight: "100vh", color: "white" }}>
       
-      {/* Хлібні крихти назад */}
       <Link to="/physics/classic" style={{ color: "#79c0ff", textDecoration: "none", marginBottom: "30px", display: "inline-block", fontSize: "1.1rem" }}>
         ← Назад до Класичної фізики
       </Link>
@@ -21,32 +20,39 @@ export default function MechanicsPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "30px" }}>
         
-        {/* КАРТКА СИМУЛЯТОРА */}
+        {/* КАРТКА СИМУЛЯТОРА ВІДЦЕНТРОВОЇ СИЛИ */}
         <NavCard 
           title="Відцентрова Сила"
-          desc="Симулятор станції 'Endurance' з Interstellar. Розрахунок штучної гравітації, конвертер одиниць та вектори сил."
+          desc="Симулятор станції 'Endurance'. Розрахунок штучної гравітації та ефекту Коріоліса."
           to="/simulation/centrifugal"
-          color="#f2cc60" // Жовтий акцент
+          color="#f2cc60" 
           icon="🎡"
         />
 
-        {/* Місце для майбутніх симуляцій */}
-        <div style={{ 
-          background: "rgba(22, 27, 34, 0.5)", 
-          border: "1px dashed #30363d", 
-          borderRadius: "16px", 
-          padding: "30px", 
-          display: "flex", 
-          flexDirection: "column", 
-          alignItems: "center", 
-          justifyContent: "center",
-          color: "#8b949e",
-          minHeight: "200px"
-        }}>
-          <div style={{ fontSize: "3rem", marginBottom: "15px", opacity: 0.5 }}>🌪️</div>
-          <h3>Гіроскоп</h3>
-          <p style={{ fontSize: "0.9rem" }}>Незабаром...</p>
-        </div>
+        {/* НОВА КАРТКА ГІРОСКОПА */}
+        <NavCard 
+          title="Гіроскоп"
+          desc="Інтерактивна модель прецесії дзиґи. Дослідіть вплив спіну, маси та кута нахилу на стійкість."
+          to="/classic/gyroscope" 
+          color="#e74c3c"
+          icon="🌪️"
+        />
+        {/* 👇 НОВА КАРТКА */}
+        <NavCard 
+          title="Закони Кеплера"
+          desc="Орбітальна механіка. Еліптичні орбіти, зміна швидкості планети та залежність періоду від радіуса."
+          to="/classic/kepler" 
+          color="#4ade80"
+          icon="🪐"
+        />
+        {/* КАРТКА СИМУЛЯТОРА ЗАКОНІВ НЬЮТОНА (НОВА) */}
+        <NavCard 
+          title="Закони Ньютона"
+          desc="Інтерактивна лабораторія: Інерція, F=ma та Дія-Протидія. 3D візуалізація сил та руху."
+          to="/classic/newton" 
+          color="#3b82f6"
+          icon="🍎"
+        />
 
       </div>
     </div>

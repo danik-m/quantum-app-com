@@ -9,9 +9,13 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   constructor(props: { children: React.ReactNode }) { super(props); this.state = {hasError:false}; }
   static getDerivedStateFromError() { return {hasError:true}; }
   componentDidCatch(err:any) { console.error("Simulation Error:", err); }
-  render() { return this.state.hasError ? <div style={{color:"red"}}>Помилка симуляції</div> : this.props.children; }
+  render() { 
+    if (this.state.hasError) {
+        return <div className="text-red-500 p-4 border border-red-500 rounded bg-red-900/20">Помилка відображення симуляції. Спробуйте оновити сторінку.</div>;
+    }
+    return this.props.children; 
+  }
 }
-
 
 // --- ТИПИ ---
 type UnitData = {
@@ -19,8 +23,8 @@ type UnitData = {
     force: Record<string, number>;
     acceleration: Record<string, number>;
     angular_velocity: Record<string, number>;
-    effective_mass?: Record<string, number>;
-    radius?: Record<string, string | number>;
+    effective_mass: Record<string, number>;
+    radius: Record<string, string | number>;
   };
   physics: {
     omega_rad_s: number;
@@ -29,14 +33,13 @@ type UnitData = {
 };
 
 // =====================================================================
-// 1. ПОКРАЩЕНА МОДЕЛЬ СТАНЦІЇ (ANDREWS / ENDURANCE)
+// 1. СТАНЦІЯ "ENDURANCE" (ANDREWS)
 // =====================================================================
 const SpaceStation: React.FC<{ angularVelocity: number; radius: number }> = ({ angularVelocity, radius }) => {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame((_, delta) => {
     if (groupRef.current) {
-      // Обертання станції навколо осі Z
       groupRef.current.rotation.z += angularVelocity * delta * 0.2; 
     }
   });
@@ -48,61 +51,42 @@ const SpaceStation: React.FC<{ angularVelocity: number; radius: number }> = ({ a
       return {
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
-        rotation: angle
+        rot: angle
       };
     });
   }, [radius]);
 
   return (
     <group>
-      {/* Нерухома "орбітальна сітка" для контрасту обертання */}
       <gridHelper args={[100, 20, 0x222222, 0x111111]} rotation={[Math.PI/2, 0, 0]} position={[0, 0, -5]} />
       
-      {/* Група, що обертається */}
       <group ref={groupRef}>
-        {/* Центральний хаб */}
         <mesh rotation={[Math.PI/2, 0, 0]}>
           <cylinderGeometry args={[2.5, 2.5, 1.5, 32]} />
           <meshStandardMaterial color="#555" metalness={0.8} roughness={0.2} />
         </mesh>
-        <mesh position={[0, 0, 1]}>
-           <cylinderGeometry args={[1, 1, 0.5, 16]} />
-           <meshStandardMaterial color="#222" />
-        </mesh>
-
-        {/* Спиці (Connections) */}
+        
         {modules.map((m, i) => (
-          <mesh key={`spoke-${i}`} position={[m.x / 2, m.y / 2, 0]} rotation={[0, 0, m.rotation]}>
-            <boxGeometry args={[radius, 0.4, 0.4]} />
-            <meshStandardMaterial color="#333" />
-          </mesh>
-        ))}
-
-        {/* Модулі (Кільце) */}
-        {modules.map((m, i) => (
-          <group key={`module-${i}`} position={[m.x, m.y, 0]} rotation={[0, 0, m.rotation]}>
-            {/* Корпус */}
-            <mesh castShadow receiveShadow>
-              <boxGeometry args={[4.2, 1.8, 1.8]} />
-              <meshStandardMaterial color={i % 2 === 0 ? "#eeeeee" : "#cccccc"} metalness={0.5} roughness={0.4} />
+          <group key={i}>
+            <mesh key={`spoke-${i}`} position={[m.x / 2, m.y / 2, 0]} rotation={[0, 0, m.rot]}>
+                <boxGeometry args={[radius, 0.4, 0.4]} />
+                <meshStandardMaterial color="#333" />
             </mesh>
-            {/* Вікна (спрямовані "вгору" до центру, звідки падає світло зірок) */}
-            <mesh position={[0, -0.91, 0]} rotation={[Math.PI/2, 0, 0]}>
-              <planeGeometry args={[2, 1]} />
-              <meshStandardMaterial color="#88ccff" emissive="#004488" emissiveIntensity={1} />
-            </mesh>
-            {/* Двигуни/Деталі на зовнішній стороні */}
-            <mesh position={[0, 0.91, 0]} rotation={[-Math.PI/2, 0, 0]}>
-               <planeGeometry args={[3, 1.2]} />
-               <meshStandardMaterial color="#111" />
-            </mesh>
+            
+            <group position={[m.x, m.y, 0]} rotation={[0, 0, m.rot]}>
+                <mesh castShadow receiveShadow>
+                    <boxGeometry args={[4.2, 1.8, 1.8]} />
+                    <meshStandardMaterial color={i % 2 === 0 ? "#eeeeee" : "#cccccc"} metalness={0.5} roughness={0.4} />
+                </mesh>
+                <mesh position={[0, -0.91, 0]} rotation={[Math.PI/2, 0, 0]}>
+                    <planeGeometry args={[2, 1]} />
+                    <meshStandardMaterial color="#88ccff" emissive="#004488" emissiveIntensity={1} />
+                </mesh>
+            </group>
           </group>
         ))}
 
-        {/* --- СЦЕНА З АСТРОНАВТОМ (В НИЖНЬОМУ МОДУЛІ) --- */}
-        {/* Розташовуємо астронавта на "підлозі" (зовнішній радіус) */}
         <group position={[0, -radius + 1.8, 0]}>
-          {/* Астронавт */}
           <mesh position={[0, 0, 0]}>
               <capsuleGeometry args={[0.3, 0.9, 4, 8]} />
               <meshStandardMaterial color="#eab308" />
@@ -112,9 +96,6 @@ const SpaceStation: React.FC<{ angularVelocity: number; radius: number }> = ({ a
               <meshStandardMaterial color="white" />
           </mesh>
 
-          {/* Вектори сил (з підписами через HTML) */}
-          
-          {/* N (Зелена) - Реакція опори / Гравітація */}
           <arrowHelper args={[new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1.2, 0), 5, 0x4ade80, 1.2, 0.8]} />
           <Html position={[1.5, 1.5, 0]} zIndexRange={[100, 0]}>
               <div style={{ background: 'rgba(0,0,0,0.8)', padding: '4px', borderRadius: '4px', border: '1px solid #4ade80', color: '#4ade80', fontSize: '10px', whiteSpace: 'nowrap' }}>
@@ -122,7 +103,6 @@ const SpaceStation: React.FC<{ angularVelocity: number; radius: number }> = ({ a
               </div>
            </Html>
 
-          {/* F_cf (Червона) - Відцентрова сила */}
           <arrowHelper args={[new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 0), 5, 0xff4444, 1.2, 0.8]} />
           <Html position={[1.5, -3, 0]} zIndexRange={[100, 0]}>
               <div style={{ background: 'rgba(0,0,0,0.8)', padding: '4px', borderRadius: '4px', border: '1px solid #ff4444', color: '#ff4444', fontSize: '10px', whiteSpace: 'nowrap' }}>
@@ -135,12 +115,354 @@ const SpaceStation: React.FC<{ angularVelocity: number; radius: number }> = ({ a
   );
 };
 
+// =====================================================================
+// 2. КАЛЬКУЛЯТОР ДЛЯ СТАНЦІЇ (ANDREWS)
+// =====================================================================
+const AndrewsFullCalculator = ({ mass, setMass, massUnit, setMassUnit, radius, setRadius, radiusUnit, setRadiusUnit, velocity, setVelocity, velocityUnit, setVelocityUnit, results }: any) => {
+  return (
+    <div style={{ color: 'white', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '10px', border: '1px solid #333', marginBottom: '15px' }}>
+        <label style={{ display: 'block', marginBottom: '5px', color: '#bbb', fontSize: '0.85rem' }}>Mass (m)</label>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <input type="number" value={mass} onChange={(e)=>setMass(Number(e.target.value))} style={{ flex:1, background:'#222', color:'white', border:'1px solid #444', padding:'6px', borderRadius:'4px' }} />
+          <select value={massUnit} onChange={(e)=>setMassUnit(e.target.value)} style={{ background:'#333', color:'white', border:'1px solid #444', padding:'6px', borderRadius:'4px' }}>
+            <option value="kg">kg</option>
+            <option value="g">grams</option>
+            <option value="dag">decagrams</option>
+            <option value="gr">grains</option>
+            <option value="dr">drachms</option>
+            <option value="oz">ounces</option>
+            <option value="lb">pounds</option>
+            <option value="st">stones</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '10px', border: '1px solid #333', marginBottom: '15px' }}>
+        <label style={{ display: 'block', marginBottom: '5px', color: '#bbb', fontSize: '0.85rem' }}>Radius (r)</label>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <input type="number" value={radius} onChange={(e)=>setRadius(Number(e.target.value))} style={{ flex:1, background:'#222', color:'white', border:'1px solid #444', padding:'6px', borderRadius:'4px' }} />
+          <select value={radiusUnit} onChange={(e)=>setRadiusUnit(e.target.value)} style={{ background:'#333', color:'white', border:'1px solid #444', padding:'6px', borderRadius:'4px' }}>
+            <option value="m">m</option>
+            <option value="mm">mm</option>
+            <option value="cm">cm</option>
+            <option value="km">km</option>
+            <option value="in">in</option>
+            <option value="ft">ft</option>
+            <option value="yd">yd</option>
+            <option value="mi">mi</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={{ background: '#1a1a1a', padding: '15px', borderRadius: '10px', border: '1px solid #333', marginBottom: '15px' }}>
+        <label style={{ display: 'block', marginBottom: '5px', color: '#bbb', fontSize: '0.85rem' }}>Tangential velocity (v)</label>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <input type="number" value={velocity} onChange={(e)=>setVelocity(Number(e.target.value))} style={{ flex:1, background:'#222', color:'white', border:'1px solid #444', padding:'6px', borderRadius:'4px' }} />
+          <select value={velocityUnit} onChange={(e)=>setVelocityUnit(e.target.value)} style={{ background:'#333', color:'white', border:'1px solid #444', padding:'6px', borderRadius:'4px' }}>
+            <option value="m/s">m/s</option>
+            <option value="km/h">km/h</option>
+            <option value="ft/s">ft/s</option>
+            <option value="mph">mph</option>
+            <option value="ft/min">ft/min</option>
+            <option value="m/min">m/min</option>
+          </select>
+        </div>
+      </div>
+
+      {results && (
+        <div style={{ display:"grid", gap:"10px", gridTemplateColumns: "1fr 1fr" }}>
+          <div style={{ background:"rgba(255,255,255,0.05)", padding:"10px", borderRadius:"8px" }}>
+            <h3 style={{ color:"#ff5555", margin: "0 0 5px 0", fontSize: "0.9rem" }}>Force (F)</h3>
+            <p className="text-xs">N: {results.conversions.force["N"]?.toFixed(1)}</p>
+            <p className="text-xs">kN: {results.conversions.force["kN"]?.toFixed(3)}</p>
+            <p className="text-xs">lbf: {results.conversions.force["lbf"]?.toFixed(1)}</p>
+          </div>
+
+          <div style={{ background:"rgba(255,255,255,0.05)", padding:"10px", borderRadius:"8px" }}>
+            <h3 style={{ color:"#55aaff", margin: "0 0 5px 0", fontSize: "0.9rem" }}>Acc (a)</h3>
+            <p className="text-xs">m/s²: {results.conversions.acceleration["m/s2"]?.toFixed(2)}</p>
+            <p className="text-xs text-yellow-400 font-bold">g: {results.conversions.acceleration["g"]?.toFixed(2)}</p>
+          </div>
+
+          <div style={{ background:"rgba(255,255,255,0.05)", padding:"10px", borderRadius:"8px" }}>
+            <h3 style={{ color:"#55ff55", margin: "0 0 5px 0", fontSize: "0.9rem" }}>Omega (ω)</h3>
+            <p className="text-xs">RPM: {results.conversions.angular_velocity["rpm"]?.toFixed(1)}</p>
+            <p className="text-xs">rad/s: {results.conversions.angular_velocity["rad/s"]?.toFixed(2)}</p>
+          </div>
+
+          <div style={{ background:"rgba(255,255,255,0.05)", padding:"10px", borderRadius:"8px" }}>
+            <h3 style={{ color:"#aaa", margin: "0 0 5px 0", fontSize: "0.9rem" }}>Mass</h3>
+            <p className="text-xs">kg: {results.conversions.effective_mass["kg"]?.toFixed(1)}</p>
+            <p className="text-xs">lb: {results.conversions.effective_mass["lb"]?.toFixed(1)}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 // =====================================================================
-// 3. ГОЛОВНИЙ КОМПОНЕНТ СТОРІНКИ
+// 3. СИМУЛЯЦІЯ КОРІОЛІСА (ДИСК)
+// =====================================================================
+
+const CoriolisInnerLoop = ({ 
+    launch, 
+    omega, 
+    initialVel, 
+    launchAngle, 
+    onFinish 
+}: { 
+    launch: number, 
+    omega: number, 
+    initialVel: number,
+    launchAngle: number,
+    onFinish: () => void
+}) => {
+    const timeRef = useRef(0);
+    const ballRef = useRef<THREE.Mesh>(null);
+    const vArrowRef = useRef<THREE.ArrowHelper>(null);
+    const corArrowRef = useRef<THREE.ArrowHelper>(null);
+    const cfArrowRef = useRef<THREE.ArrowHelper>(null);
+
+    const initialPos = useMemo(() => new THREE.Vector3(0, 0, 0.5), []);
+
+    // Лінія траєкторії (синя)
+    // Використовуємо стабільний об'єкт лінії
+    const lineObject = useMemo(() => {
+        const geometry = new THREE.BufferGeometry();
+        // Створюємо буфер на 2000 точок
+        const points = new Float32Array(2000 * 3);
+        geometry.setAttribute('position', new THREE.BufferAttribute(points, 3));
+        geometry.setDrawRange(0, 0); // Спочатку не малюємо
+        
+        const material = new THREE.LineBasicMaterial({ color: 0x3b82f6, linewidth: 2 });
+        const line = new THREE.Line(geometry, material);
+        line.frustumCulled = false; // Важливо!
+        return line;
+    }, []);
+
+    // Скидання при зупинці/запуску
+    useEffect(() => {
+        if (launch > 0) {
+            timeRef.current = 0;
+            if (ballRef.current) ballRef.current.position.copy(initialPos);
+            // Очищення лінії
+            lineObject.geometry.setDrawRange(0, 0);
+        }
+    }, [launch, initialPos, lineObject]);
+
+    useFrame((_, delta) => {
+        if (launch === 0 || !ballRef.current) return;
+
+        // Перевірка на вихід за межі
+        if (ballRef.current.position.length() > 9.5) {
+            onFinish();
+            return;
+        }
+
+        timeRef.current += delta;
+        const t = timeRef.current;
+
+        // --- ФІЗИКА ---
+        const radAngle = launchAngle * Math.PI / 180;
+        const dist = initialVel * t;
+        
+        // Координати в інерціальній системі
+        const x_in = dist * Math.cos(radAngle);
+        const y_in = dist * Math.sin(radAngle);
+
+        // Перехід в обертову систему
+        const rotAngle = -omega * t;
+        const x_rot = x_in * Math.cos(rotAngle) - y_in * Math.sin(rotAngle);
+        const y_rot = x_in * Math.sin(rotAngle) + y_in * Math.cos(rotAngle);
+        
+        const currentPos = new THREE.Vector3(x_rot, y_rot, 0.5);
+        ballRef.current.position.copy(currentPos);
+
+        // --- ТРАЄКТОРІЯ ---
+        // Оновлюємо буфер точок
+        const positions = lineObject.geometry.attributes.position.array as Float32Array;
+        // Кількість точок для малювання (приблизно 60 точок на секунду для плавності)
+        const steps = Math.min(1999, Math.ceil(t * 60) + 2);
+        
+        for(let i=0; i<=steps; i++) {
+            const ti = (i / steps) * t;
+            const di = initialVel * ti;
+            const xi = di * Math.cos(radAngle);
+            const yi = di * Math.sin(radAngle);
+            
+            const ra = -omega * ti;
+            const xr = xi * Math.cos(ra) - yi * Math.sin(ra);
+            const yr = xi * Math.sin(ra) + yi * Math.cos(ra);
+            
+            positions[i*3] = xr;
+            positions[i*3+1] = yr;
+            positions[i*3+2] = 0.05;
+        }
+        lineObject.geometry.setDrawRange(0, steps);
+        lineObject.geometry.attributes.position.needsUpdate = true;
+
+        // --- ВЕКТОРИ ---
+        const r_dir = currentPos.clone().normalize();
+        if (r_dir.length() === 0) r_dir.set(1,0,0);
+        const tan_dir = new THREE.Vector3(-r_dir.y, r_dir.x, 0); 
+        // V_rel
+        const v_rel = r_dir.clone().multiplyScalar(initialVel).add(tan_dir.clone().multiplyScalar(omega * dist));
+        
+        if (vArrowRef.current) {
+            vArrowRef.current.setDirection(v_rel.clone().normalize());
+            vArrowRef.current.setLength(v_rel.length() * 0.4); 
+            vArrowRef.current.position.copy(currentPos);
+        }
+
+        if (corArrowRef.current) {
+            const f_cor_dir = new THREE.Vector3(v_rel.y, -v_rel.x, 0).normalize();
+            if (omega < 0) f_cor_dir.negate();
+            corArrowRef.current.setDirection(f_cor_dir);
+            corArrowRef.current.setLength(2.0);
+            corArrowRef.current.position.copy(currentPos);
+        }
+
+        if (cfArrowRef.current) {
+            cfArrowRef.current.setDirection(r_dir);
+            cfArrowRef.current.setLength(dist * omega * omega * 0.2 + 0.5);
+            cfArrowRef.current.position.copy(currentPos);
+        }
+    });
+
+    return (
+        <>
+            <mesh ref={ballRef} position={[0, 0, 0.5]}>
+                <sphereGeometry args={[0.4]} />
+                <meshStandardMaterial color="#ffd12a" emissive="#ffaa00" emissiveIntensity={0.2} />
+            </mesh>
+            
+            {/* Траєкторія - використовуємо primitive для надійного рендеру */}
+            <primitive object={lineObject} />
+
+            {/* Вектори */}
+            {launch > 0 && (
+                <>
+                    <arrowHelper ref={vArrowRef} args={[new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,0), 1, 0x00ffff]} />
+                    <arrowHelper ref={corArrowRef} args={[new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,0), 1, 0x00ff00]} />
+                    <arrowHelper ref={cfArrowRef} args={[new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,0), 1, 0xff0000]} />
+                </>
+            )}
+        </>
+    );
+};
+
+export const CoriolisDisk = () => {
+  const [launch, setLaunch] = useState(0); // Timestamp
+  const [omega, setOmega] = useState(1.0);
+  const [velocity, setVelocity] = useState(4.0);
+  const [angle, setAngle] = useState(0); 
+  
+  // Функція запуску
+  const handleLaunch = () => {
+      setLaunch(0); // Скидаємо спочатку
+      // Невеликий таймаут щоб скинути стан
+      setTimeout(() => setLaunch(Date.now()), 10);
+  };
+
+  return (
+    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto">
+        
+        {/* 3D View */}
+        <div style={{ height: 450, borderRadius: 12, overflow: 'hidden', background: '#0a162e', border: '1px solid #334155', position: 'relative' }}>
+            <Canvas camera={{ position: [0, -15, 12], fov: 45 }}>
+                <ambientLight intensity={0.6} />
+                <pointLight position={[15, 15, 20]} intensity={1.2} />
+
+                {/* Диск */}
+                <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                    <cylinderGeometry args={[9, 9, 0.5, 64]} />
+                    <meshStandardMaterial color="#64748b" />
+                </mesh>
+                <gridHelper args={[18, 18, 0x334155, 0x334155]} rotation={[Math.PI / 2, 0, 0]} position={[0,0,0.3]} />
+                
+                {/* Вісь */}
+                <arrowHelper args={[new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,0), 6, 0xa855f7, 1, 0.5]} />
+                <Html position={[0,0,6.5]}><div className="text-purple-400 font-bold text-lg">ω</div></Html>
+
+                <CoriolisInnerLoop 
+                    launch={launch} 
+                    omega={omega} 
+                    initialVel={velocity}
+                    launchAngle={angle}
+                    onFinish={() => {}}
+                />
+
+                <OrbitControls enablePan={true} enableZoom={true} enableRotate={true} />
+            </Canvas>
+            
+            {/* Легенда */}
+            <div className="absolute top-4 left-4 bg-black/70 backdrop-blur p-3 rounded border border-slate-700 text-xs text-slate-300 pointer-events-none">
+                <div className="font-bold mb-2 text-white">Вектори</div>
+                <div className="flex items-center gap-2 mb-1"><span className="w-3 h-3 bg-cyan-400 rounded-full"></span> Швидкість (v_rel)</div>
+                <div className="flex items-center gap-2 mb-1"><span className="w-3 h-3 bg-green-500 rounded-full"></span> Сила Коріоліса (F_cor)</div>
+                <div className="flex items-center gap-2 mb-1"><span className="w-3 h-3 bg-red-500 rounded-full"></span> Відцентрова (F_cf)</div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 bg-blue-500 rounded-full"></span> Траєкторія</div>
+            </div>
+        </div>
+
+        {/* Controls - ТЕПЕР ЗНИЗУ */}
+        <div className="bg-slate-900 p-6 rounded-xl border border-slate-700 h-fit">
+            <h3 className="text-cyan-400 font-bold mb-4 border-b border-slate-700 pb-2">Налаштування Коріоліса</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div>
+                    <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Angular Velocity (ω)</label>
+                    <input type="range" min="0.1" max="5" step="0.1" value={omega} onChange={(e)=>setOmega(Number(e.target.value))} className="w-full accent-purple-500" />
+                    <div className="text-right font-mono text-purple-400">{omega} rad/s</div>
+                </div>
+
+                <div>
+                    <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Launch Velocity (v)</label>
+                    <input type="range" min="1" max="10" step="0.5" value={velocity} onChange={(e)=>setVelocity(Number(e.target.value))} className="w-full accent-cyan-500" />
+                    <div className="text-right font-mono text-cyan-400">{velocity} m/s</div>
+                </div>
+
+                <div>
+                    <label className="block text-slate-400 text-xs uppercase font-bold mb-1">Launch Angle (deg)</label>
+                    <input type="range" min="0" max="360" step="15" value={angle} onChange={(e)=>setAngle(Number(e.target.value))} className="w-full accent-yellow-500" />
+                    <div className="text-right font-mono text-yellow-400">{angle}°</div>
+                </div>
+            </div>
+
+            <div className="flex gap-4">
+                <button
+                    className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg transition active:scale-95"
+                    onClick={handleLaunch}
+                >
+                    🚀 ЗАПУСТИТИ
+                </button>
+            </div>
+            
+            {/* Independent Calc */}
+            <div className="mt-6 pt-4 border-t border-slate-700">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center text-xs font-mono">
+                    <div className="bg-green-900/30 p-2 rounded border border-green-500/50 flex justify-between px-4">
+                        <span className="text-green-400 font-bold">F_coriolis (max)</span>
+                        <span>{(2 * 1 * velocity * omega).toFixed(2)} N</span>
+                    </div>
+                    <div className="text-slate-500 flex items-center justify-center">
+                        (Розрахунок для m=1кг)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+  );
+};
+
+
+// =====================================================================
+// 4. ГОЛОВНИЙ КОМПОНЕНТ СТОРІНКИ
 // =====================================================================
 export default function CentrifugalSimulator() {
-  // Lifted state for Andrews calculator (so calculator and simulation share same data)
   const [mass, setMass] = useState<number>(70);
   const [massUnit, setMassUnit] = useState<string>("kg");
   const [radius, setRadius] = useState<number>(50);
@@ -171,270 +493,322 @@ export default function CentrifugalSimulator() {
   const visualOmega = results?.physics?.omega_rad_s || 0.6;
 
   return (
-    <div style={{ display: 'block', width: '100%', minHeight: '100vh', background: '#020617', color: '#f1f5f9', overflow: 'hidden' }}>
-      <div style={{ width: '100%', height: '100vh', overflowY: 'auto', padding: '32px', boxSizing: 'border-box' }}>
+    <div style={{ display: 'block', width: '100%', minHeight: '100vh', background: '#020617', color: '#f1f5f9' }}>
+      <div style={{ width: '100%', padding: '32px', boxSizing: 'border-box' }}>
         <h1 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '2rem', background: 'linear-gradient(to right, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
           Відцентрова Сила & Коріоліс
         </h1>
         <ErrorBoundary>
-          {/* Блок 1: Станція + праворуч калькулятор (одне вікно, дві колонки) */}
-          <section className="mb-12">
+          
+          {/* СЕКЦІЯ 1: СТАНЦІЯ */}
+          <section className="mb-24">
             <h2 style={{ color: '#fbbf24', fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>🎡</span> Штучна гравітація (Станція)
             </h2>
 
-            {/* Two-column layout: left = canvas, right = calculator */}
-            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+            {/* Layout: Andrews - GRID для надійного side-by-side */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
               {/* Left: 3D Canvas */}
-              <div style={{ flex: '1 1 65%', minWidth: 420 }}>
-                <div style={{ height: '450px', borderRadius: '16px', overflow: 'hidden', background: '#000', position: 'relative', border: '1px solid #333', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+              <div className="lg:col-span-2 w-full">
+                <div style={{ height: '500px', borderRadius: '16px', overflow: 'hidden', background: '#000', position: 'relative', border: '1px solid #333', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
                   <Canvas camera={{ position: [0,0,60], fov: 45 }}>
-                    <Suspense fallback={<Html center><div style={{color:'white'}}>Завантаження 3D...</div></Html>}>
+                    <Suspense fallback={<Html center><div style={{color:'white'}}>Завантаження...</div></Html>}>
                       <color attach="background" args={["#050505"]} />
                       <Stars radius={150} depth={50} count={3000} factor={4} saturation={0} fade />
                       <ambientLight intensity={0.3} />
                       <pointLight position={[40,40,50]} intensity={1.5} />
-                      {/* Pass visualOmega and radius computed from calculator state */}
-                      <SpaceStation angularVelocity={results?.physics?.omega_rad_s ?? visualOmega} radius={Math.max(6, Math.min(visualRadius, radius / 2))} />
+                      <SpaceStation angularVelocity={results?.physics?.omega_rad_s ?? visualOmega} radius={visualRadius} />
                       <OrbitControls enablePan={true} enableZoom={true} enableRotate={true} />
                     </Suspense>
                   </Canvas>
 
-                  {/* Overlay Info */}
                   <div style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
                     <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>Параметри візуалізації</div>
                     <div style={{ color: '#fff', fontSize: '14px', fontFamily: 'monospace' }}>ω = {(results?.physics?.omega_rad_s ?? visualOmega).toFixed(3)} rad/s</div>
                   </div>
                 </div>
-
-                <div className="mt-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-sm text-slate-300 leading-relaxed">
-                  Обертання станції створює ілюзію гравітації. Насправді це підлога тисне на астронавта (сила N), змушуючи його рухатися по колу, а не по прямій. Астронавт відчуває це як "вагу".
+                
+                <div className="mt-4 bg-blue-900/20 p-4 rounded-lg border border-blue-800/50 text-sm text-blue-200">
+                  <strong className="text-blue-400">Пояснення:</strong> Станція обертається, створюючи інерційну систему. Для спостерігача всередині це виглядає як гравітація, що діє від центру назовні (притискає до підлоги).
                 </div>
               </div>
 
-              {/* Right: Calculator panel — connected to Andrews simulation */}
-              <div style={{ flex: '0 0 320px' }}>
-                <div style={{ position: 'sticky', top: 24 }}>
-                  <div style={{ marginTop:'0px', background:'#0f172a', padding:'24px', borderRadius:'12px' }}>
-                    <h2 style={{ color:'#38bdf8', fontSize:'1.4rem', fontWeight:'bold', marginBottom:'16px' }}>
-                      🧮 Калькулятор Штучної Гравітації (Endurance / Andrews)
-                    </h2>
-                    <AndrewsFullCalculator
-                      mass={mass} setMass={setMass} massUnit={massUnit} setMassUnit={setMassUnit}
-                      radius={radius} setRadius={setRadius} radiusUnit={radiusUnit} setRadiusUnit={setRadiusUnit}
-                      velocity={velocity} setVelocity={setVelocity} velocityUnit={velocityUnit} setVelocityUnit={setVelocityUnit}
-                      results={results} theoryText={theoryText} setTheoryText={setTheoryText}
-                    />
-                  </div>
-                </div>
+              {/* Right: Calculator */}
+              <div className="lg:col-span-1 w-full">
+                <AndrewsFullCalculator
+                  mass={mass} setMass={setMass} massUnit={massUnit} setMassUnit={setMassUnit}
+                  radius={radius} setRadius={setRadius} radiusUnit={radiusUnit} setRadiusUnit={setRadiusUnit}
+                  velocity={velocity} setVelocity={setVelocity} velocityUnit={velocityUnit} setVelocityUnit={setVelocityUnit}
+                  results={results} theoryText={theoryText} setTheoryText={setTheoryText}
+                />
               </div>
             </div>
-
           </section>
 
-          {/* Блок 2: Коріоліс / Диск */}
+          {/* СЕКЦІЯ 2: КОРІОЛІС */}
           <section className="mb-8">
             <h2 style={{ color: '#fbbf24', fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>🌀</span> Ефект Коріоліса (Диск)
             </h2>
-            {/* Place the CoriolisDisk simulation here */}
             <CoriolisDisk />
           </section>
+
+        {/* --- FULL CORIOLIS THEOREM TEXT BLOCK --- */}
+        <div style={{ marginTop:"60px", padding:"32px", background:"rgba(10,20,40,0.55)", borderRadius:"16px", border:"1px solid rgba(80,150,255,0.25)", color:"white", lineHeight:"1.7", fontSize:"1rem", boxShadow:"0 0 25px rgba(0,150,255,0.15)" }}>
+
+  <h2 style={{ fontSize:"2rem", color:"#38bdf8", marginBottom:"20px", fontWeight:"700", textShadow:"0 0 10px rgba(56,189,248,0.4)" }}>
+    5.1. Теорема Коріоліса (Розширена версія)
+  </h2>
+
+  <p>
+    Теорема Коріоліса описує прискорення точки у неінерціальній системі, що обертається. 
+    Нижче наведено повний та розширений виклад, включно з основними формулами.
+  </p>
+
+  <h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.3rem" }}>1. Радіус-вектор та швидкості</h3>
+
+  <p>
+    У цьому розділі ми детально розглянемо, як описується положення та швидкість матеріальної точки
+    одночасно в інерціальній та неінерціальній системах відліку. Це критично важливо, оскільки
+    перехід між двома системами не є тривіальним через обертання та можливе прискорення основи.
+  </p>
+
+  <p>
+    Нехай центр неінерціальної системи має положення:
+  </p>
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[ \\vec{R}(t) \\]` }}
+  />
+
+  <p>Тоді положення точки в інерціальній системі:</p>
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[ \\vec{F}_i = \\vec{R}(t) + \\vec{F}_n \\]` }}
+  />
+
+  <h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.3rem" }}>2. Орти та похідні</h3>
+  <p>У системі, що обертається з кутовою швидкістю Ω(t):</p>
+
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[
+\\frac{d\\vec i}{dt} = \\vec\\Omega \\times \\vec i \\\\
+\\frac{d\\vec j}{dt} = \\vec\\Omega \\times \\vec j \\\\
+\\frac{d\\vec k}{dt} = \\vec\\Omega \\times \\vec k
+\\]` }}
+  />
+
+  <p>Радіус-вектор точки в неінерціальній системі:</p>
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[ \\vec{F}_n = x\\vec i + y\\vec j + z\\vec k \\]` }}
+  />
+
+  <h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.3rem" }}>3. Абсолютна швидкість</h3>
+
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[ \\vec{V}_a = \\vec{V} + \\dot{\\vec{r}}_n + \\vec\\Omega \\times \\vec{F}_n \\]` }}
+  />
+
+  <p>
+    Вираз для абсолютної швидкості демонструє, що рух точки складається з трьох незалежних частин:
+    руху центру системи, відносного руху точки всередині системи та додаткової компоненти, що пов'язана
+    з обертанням базису. Саме ця третя складова є ключем до появи ефектів Коріоліса.
+  </p>
+
+  <p>Де V — швидкість центру обертання:</p>
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[ \\vec{V} = \\frac{d\\vec{R}}{dt} \\]` }}
+  />
+
+  <h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.3rem" }}>4. Абсолютне прискорення</h3>
+
+  <p>Загальна формула прискорення точки в інерціальній системі:</p>
+
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[
+\\vec{a}_a = \\vec{A} + \\vec{a}_n + 2\\vec\\Omega \\times \\vec{V}_n + \\frac{d\\vec\\Omega}{dt} \\times \\vec{F}_n + \\vec\\Omega \\times (\\vec\\Omega \\times \\vec{F}_n)
+\\]` }}
+  />
+
+  <p>
+    Повне диференціювання векторів у системі, що обертається, призводить до появи трьох різних
+    додаткових прискорень, кожне з яких має власну фізичну природу. Їх сума створює складну,
+    але строго визначену кінематичну структуру руху.
+  </p>
+
+  <p>Це і є повна форма Теореми Коріоліса:</p>
+
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[ \\vec{a}_a = \\vec{a}_n + \\vec{a}_{kor} + \\vec{a}_{per} \\]` }}
+  />
+
+  <p><b>Де:</b></p>
+
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[
+\\vec{a}_{kor} = 2\\vec\\Omega \\times \\vec{V}_n \\\\
+\\vec{a}_{per} = \\vec{A} + \\frac{d\\vec\\Omega}{dt} \\times \\vec{F}_n + \\vec\\Omega \\times (\\vec\\Omega \\times \\vec{F}_n) \\\\
+\\vec{a}_{doc} = \\Omega^2 \\vec{r}
+\\]` }}
+  />
+
+  <h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.3rem" }}>5. Сили інерції</h3>
+
+  <p>
+    У неінерціальних системах відліку ми змушені вводити фіктивні сили. Хоча ці сили не існують
+    фізично — вони є математичним наслідком використання прискореної системи координат —
+    їх вплив на рух реальний і вимірюваний.
+  </p>
+
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[
+\\vec{F}_{kor} = 2m (\\vec\\Omega \\times \\vec{V}_n) \\\\
+\\vec{F}_{doc} = m \\Omega^2 \\vec{r} \\\\
+\\vec{F}_{per} = -m\\vec{A} - m\\left(\\frac{d\\vec\\Omega}{dt} \\times \\vec{F}_n\\right)
+\\]` }}
+  />
+
+  <h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.3rem" }}>6. Для сталої швидкості обертання</h3>
+
+  <div
+    className="math-block"
+    dangerouslySetInnerHTML={{ __html: `\\[ \\vec{a}_a = \\vec{a}_n + 2\\vec\\Omega \\times \\vec{V}_n - \\Omega^2 \\vec{r} \\]` }}
+  />
+
+  <p>
+    Ця формула повністю узгоджується з математикою, що використовується
+    у нашій 3D симуляції ефекту Коріоліса.
+  </p>
+
+  <p style={{ marginTop:"28px", fontSize:"1.1rem", color:"#cbd5e1" }}>
+    Підсумовуючи, Теорема Коріоліса є фундаментальною для розуміння руху тіл на Землі,
+    у штучних космічних станціях та в будь-яких обертових системах. Вона дозволяє точно
+    враховувати ефекти викривлення траєкторій, появу уявних сил та складніші взаємодії
+    між рухомими об'єктами та самою системою відліку.
+  </p>
+</div>
+
+        {/* --- INSERTED: КІНЕМАТИКА ТА ДИНАМІКА У НЕІНЕРЦІАЛЬНИХ СИСТЕМАХ --- */}
+        <div style={{ marginTop:"60px", padding:"32px", background:"rgba(10,20,40,0.65)", borderRadius:"16px", border:"1px solid rgba(80,150,255,0.35)", color:"white", lineHeight:"1.7", fontSize:"1rem", boxShadow:"0 0 25px rgba(0,150,255,0.25)" }}>
+
+<h2 style={{ fontSize:"2.2rem", color:"#38bdf8", marginBottom:"20px", fontWeight:"800", textShadow:"0 0 12px rgba(56,189,248,0.5)" }}>
+5.1. Теорема Коріоліса: Кінематика та динаміка у неінерціальних системах
+</h2>
+
+<p>
+У класичній механіці закони Ньютона виконуються лише в інерціальних системах відліку. Проте на практиці ми часто маємо справу з системами, що рухаються з прискоренням або обертаються (наприклад, поверхня Землі, карусель, транспорт, що гальмує). Щоб описувати рух тіл у таких <b>неінерціальних системах відліку (НіСВ)</b>, необхідно ввести поправки до кінематичних величин та ввести поняття <b>сил інерції</b>. Фундаментальним результатом цієї теорії є теорема, доведена французьким вченим Гаспаром-Гюставом Коріолісом.
+</p>
+
+<h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.4rem" }}>1. Кінематичний опис руху</h3>
+
+<p>
+Розглянемо дві системи відліку:<br/>
+1. <b>Інерціальна система (K)</b> — умовно "нерухома".<br/>
+2. <b>Неінерціальна система (K')</b> — рухається довільним чином відносно K.
+</p>
+
+<p>Рух системи K' можна розкласти на дві складові:</p>
+
+<ul>
+<li><b>Поступальний рух:</b> центр системи O' рухається зі швидкістю 𝑽₀(t) та має радіус-вектор 𝑹(t).</li>
+<li><b>Обертальний рух:</b> система K' обертається навколо миттєвої осі з кутовою швидкістю 𝛀(t).</li>
+</ul>
+
+<p>Положення довільної точки M:</p>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[ \\vec{r} = \\vec{R} + \\vec{r}' \\]` }}
+/>
+
+<h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.4rem" }}>Швидкість зміни ортів (Формули Пуассона)</h3>
+
+<p>
+Нехай у НіСВ базисні орти 𝒊, 𝒋, 𝒌. Для зовнішнього спостерігача вони обертаються разом із системою. Їх похідні:
+</p>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[
+\\frac{d\\vec{i}}{dt} = \\vec{\\Omega} \\times \\vec{i} \\\\
+\\frac{d\\vec{j}}{dt} = \\vec{\\Omega} \\times \\vec{j} \\\\
+\\frac{d\\vec{k}}{dt} = \\vec{\\Omega} \\times \\vec{k}
+\\]` }}
+/>
+
+<h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.4rem" }}>2. Додавання швидкостей</h3>
+
+<p>Відносний радіус-вектор:</p>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[ \\vec{r}' = x\\vec{i} + y\\vec{j} + z\\vec{k} \\]` }}
+/>
+
+<p>Диференціюючи:</p>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[ \\frac{d\\vec{r}'}{dt} = \\vec{v}_{rel} + \\Omega \\times \\vec{r}' \\]` }}
+/>
+
+<p>Абсолютна швидкість:</p>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[ \\vec{v}_{abs} = \\vec{V}_0 + \\vec{v}_{rel} + \\Omega \\times \\vec{r}' \\]` }}
+/>
+
+<p>Класичне додавання швидкостей:</p>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[ \\vec{v}_{abs} = \\vec{v}_{rel} + \\vec{v}_{tr} \\]` }}
+/>
+
+<h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.4rem" }}>3. Теорема Коріоліса</h3>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[
+\\vec{a}_{abs} = \\vec{A}_0 + \\vec{a}_{rel} + [\\varepsilon, \\vec{r}'] + 2[\\Omega, \\vec{v}_{rel}] + [\\Omega, [\\Omega, \\vec{r}']]
+\\]` }}
+/>
+
+<p>Головний результат:</p>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[ \\vec{a}_{abs} = \\vec{a}_{rel} + \\vec{a}_{tr} + \\vec{a}_{cor} \\]` }}
+/>
+
+<h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.4rem" }}>4. Динаміка: сили інерції</h3>
+
+<div
+  className="math-block"
+  dangerouslySetInnerHTML={{ __html: `\\[
+  \\vec{F}_{kor} = 2m(\\vec{\\Omega} \\times \\vec{V}_n) \\\\
+  \\vec{F}_{doc} = m\\Omega^2 \\vec{r} \\\\
+  \\vec{F}_{per} = -m\\vec{A} - m\\left(\\frac{d\\vec{\\Omega}}{dt} \\times \\vec{F}_n\\right)
+\\]` }}
+/>
+
+<h3 style={{ marginTop:"24px", color:"#93c5fd", fontSize:"1.4rem" }}>5. Фізичний зміст</h3>
+
+<p><b>Відцентрова сила</b> — притискає до підлоги в обертових станціях.</p>
+<p><b>Сила Коріоліса</b> — викривляє траєкторії на дисках і на Землі.</p>
+
+</div>
         </ErrorBoundary>
       </div>
     </div>
   );
 }
-
-
-
-export const AndrewsFullCalculator = ({ mass, setMass, massUnit, setMassUnit, radius, setRadius, radiusUnit, setRadiusUnit, velocity, setVelocity, velocityUnit, setVelocityUnit, results, theoryText, setTheoryText }: any) => {
-  // This component no longer fetches results — parent provides `results` and state setters
-  return (
-    <div style={{ color: 'white', fontFamily: 'Inter, sans-serif' }}>
-      <div style={{ background: '#1a1a1a', padding: '20px', borderRadius: '10px', border: '1px solid #333', marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', color: '#bbb' }}>Mass (m)</label>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input type="number" value={mass} onChange={(e)=>setMass(Number(e.target.value))} style={{ flex:1, background:'#222', color:'white', border:'1px solid #444', padding:'8px' }} />
-          <select value={massUnit} onChange={(e)=>setMassUnit(e.target.value)} style={{ background:'#333', color:'white', border:'1px solid #444', padding:'8px' }}>
-            <option value="kg">kg</option>
-            <option value="g">grams</option>
-            <option value="dag">decagrams</option>
-            <option value="gr">grains</option>
-            <option value="dr">drachms</option>
-            <option value="oz">ounces</option>
-            <option value="lb">pounds</option>
-            <option value="st">stones</option>
-          </select>
-        </div>
-      </div>
-
-      <div style={{ background: '#1a1a1a', padding: '20px', borderRadius: '10px', border: '1px solid #333', marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', color: '#bbb' }}>Radius (r)</label>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input type="number" value={radius} onChange={(e)=>setRadius(Number(e.target.value))} style={{ flex:1, background:'#222', color:'white', border:'1px solid #444', padding:'8px' }} />
-          <select value={radiusUnit} onChange={(e)=>setRadiusUnit(e.target.value)} style={{ background:'#333', color:'white', border:'1px solid #444', padding:'8px' }}>
-            <option value="m">meters</option>
-            <option value="mm">millimeters</option>
-            <option value="cm">centimeters</option>
-            <option value="km">kilometers</option>
-            <option value="in">inches</option>
-            <option value="ft">feet</option>
-            <option value="yd">yards</option>
-            <option value="mi">miles</option>
-          </select>
-        </div>
-      </div>
-
-      <div style={{ background: '#1a1a1a', padding: '20px', borderRadius: '10px', border: '1px solid #333', marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', color: '#bbb' }}>Tangential velocity (v)</label>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input type="number" value={velocity} onChange={(e)=>setVelocity(Number(e.target.value))} style={{ flex:1, background:'#222', color:'white', border:'1px solid #444', padding:'8px' }} />
-          <select value={velocityUnit} onChange={(e)=>setVelocityUnit(e.target.value)} style={{ background:'#333', color:'white', border:'1px solid #444', padding:'8px' }}>
-            <option value="m/s">m/s</option>
-            <option value="km/h">km/h</option>
-            <option value="ft/s">ft/s</option>
-            <option value="mph">mph</option>
-            <option value="ft/min">ft/min</option>
-            <option value="m/min">m/min</option>
-          </select>
-        </div>
-      </div>
-
-      {results && (
-        <div style={{ display:"grid", gap:"20px" }}>
-          <div style={{ background:"rgba(255,255,255,0.05)", padding:"15px", borderRadius:"8px" }}>
-            <h3 style={{ color:"#ff5555" }}>Force (F)</h3>
-            <p>N: {results.conversions.force["N"]}</p>
-            <p>kN: {results.conversions.force["kN"]}</p>
-            <p>lbf: {results.conversions.force["lbf"]}</p>
-            <p>pdl: {results.conversions.force["pdl"]}</p>
-          </div>
-
-          <div style={{ background:"rgba(255,255,255,0.05)", padding:"15px", borderRadius:"8px" }}>
-            <h3 style={{ color:"#55aaff" }}>Acceleration</h3>
-            <p>m/s²: {results.conversions.acceleration["m/s2"]}</p>
-            <p>g: {results.conversions.acceleration["g"]}</p>
-          </div>
-
-          <div style={{ background:"rgba(255,255,255,0.05)", padding:"15px", borderRadius:"8px" }}>
-            <h3 style={{ color:"#55ff55" }}>Angular velocity</h3>
-            <p>RPM: {results.conversions.angular_velocity["rpm"]}</p>
-            <p>rad/s: {results.conversions.angular_velocity["rad/s"]}</p>
-            <p>Hz: {results.conversions.angular_velocity["Hz"]}</p>
-          </div>
-
-          <div style={{ background:"rgba(255,255,255,0.05)", padding:"15px", borderRadius:"8px" }}>
-            <h3 style={{ color:"#aaa" }}>Effective Mass</h3>
-            <p>kg: {results.conversions.effective_mass["kg"]}</p>
-            <p>lb: {results.conversions.effective_mass["lb"]}</p>
-            <p>st: {results.conversions.effective_mass["st"]}</p>
-          </div>
-        </div>
-      )}
-
-      <div style={{ marginTop:"20px", padding:"15px", background:"#111", border:"1px dashed #555", borderRadius:"8px" }}>
-        <h3>Теоретичні нотатки</h3>
-        <textarea value={theoryText} onChange={(e)=>setTheoryText(e.target.value)} style={{ width:"100%", height:"150px", background:"#000", color:"#ccc", border:"1px solid #333", padding:"10px" }} />
-      </div>
-    </div>
-  );
-};
-
-// --- Новий компонент для диска (user-rotatable, траєкторія, вектори) ---
-const NewDiskSimulation = () => {
-  return (
-    <CoriolisDisk />
-  );
-};
-
-export const CoriolisDisk = () => {
-  return (
-    <div style={{ width: '100%', maxWidth: 700 }}>
-      <div style={{ height: 320, borderRadius: 12, overflow: 'hidden', background: '#0a162e', marginBottom: 12 }}>
-        <Canvas camera={{ position: [0, 0, 22], fov: 45 }}>
-          <ambientLight intensity={0.5} />
-          <pointLight position={[15, 20, 20]} intensity={1.1} />
-          <mesh rotation={[-Math.PI/2, 0, 0]}>
-            <cylinderGeometry args={[8, 8, 0.7, 64]} />
-            <meshStandardMaterial color="#22334e" metalness={0.45} roughness={0.35} />
-          </mesh>
-          <mesh position={[8, 0, 0.5]}>
-            <sphereGeometry args={[0.33]} />
-            <meshStandardMaterial color="#f59e42" emissive="#ffb366" />
-          </mesh>
-          <line>
-            <bufferGeometry attach="geometry">
-              <bufferAttribute
-                attach="attributes-position"
-                args={[
-                  new Float32Array(
-                    Array.from({ length: 64 * 3 }, (_, i) => {
-                      const t = (i / 63) * Math.PI * 1.2;
-                      const r = 8 - 4 * (i / 63);
-                      return i % 3 === 0
-                        ? r * Math.cos(t)
-                        : i % 3 === 1
-                        ? r * Math.sin(t)
-                        : 0.5;
-                    })
-                  ),
-                  3
-                ]}
-              />
-            </bufferGeometry>
-            <lineBasicMaterial color="#38bdf8" linewidth={2} />
-          </line>
-          <arrowHelper
-            args={[
-              new THREE.Vector3(1,0,0),
-              new THREE.Vector3(8,0,0.5),
-              2,
-              0xff4444,
-              0.7,
-              0.4
-            ]}
-          />
-
-          <arrowHelper
-            args={[
-              new THREE.Vector3(0,1,0),
-              new THREE.Vector3(8,0,0.5),
-              2,
-              0x22d3ee,
-              0.7,
-              0.4
-            ]}
-          />
-
-          <arrowHelper
-            args={[
-              new THREE.Vector3(0,0,1),
-              new THREE.Vector3(8,0,0.5),
-              2,
-              0x818cf8,
-              0.7,
-              0.4
-            ]}
-          />
-
-          <arrowHelper
-            args={[
-              new THREE.Vector3(0,0,1),
-              new THREE.Vector3(0,0,0.5),
-              2,
-              0x818cf8,
-              0.7,
-              0.4
-            ]}
-/>
-          <OrbitControls enablePan={true} enableZoom={true} enableRotate={true} />
-        </Canvas>
-      </div>
-      <div className="bg-slate-800/60 p-4 rounded-lg border border-slate-700 text-slate-200 text-sm leading-relaxed">
-        <b>Висновок:</b> <br />
-        Частинка покидає диск, рухаючись інерційно по прямій, тоді як диск продовжує обертатись. Спостерігач на диску бачить вигнуту траєкторію — прояв інерції та відсутності радіального утримання.
-      </div>
-    </div>
-  );
-};

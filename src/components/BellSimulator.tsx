@@ -20,6 +20,9 @@ export default function BellSimulator() {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [stats, setStats] = useState({ total: 0, matches: 0 });
   const [report, setReport] = useState<{time: number, corr: number}[]>([]);
+  const [photonCount, setPhotonCount] = useState<number>(100);
+  const [emitted, setEmitted] = useState<number>(0);
+  const [showTable, setShowTable] = useState<boolean>(false);
 
   const [rotation, setRotation] = useState({ x: 20, y: 0 });
   const isDragging = useRef(false);
@@ -283,9 +286,17 @@ export default function BellSimulator() {
       });
 
       // spawn logic when playing
-      if (isPlaying && (time - lastSpawn.current) > spawnInterval) {
+      if (isPlaying && emitted < photonCount && (time - lastSpawn.current) > spawnInterval) {
         lastSpawn.current = time;
         spawnPair();
+        setEmitted(e => {
+          const next = e + 1;
+          if (next >= photonCount) {
+            setIsPlaying(false);
+            setShowTable(true);
+          }
+          return next;
+        });
       }
 
       animationRef.current = requestAnimationFrame(render);
@@ -317,6 +328,13 @@ export default function BellSimulator() {
         if (pA) pA.outcome = a === 1 ? 1 : -1;
         if (pB) pB.outcome = b === 1 ? 1 : -1;
         setStats(prev => ({ total: prev.total + 1, matches: prev.matches + ((a===b)?1:0) }));
+        const now = performance.now();
+        setReport(prev => {
+          const total = prev.length + 1;
+          const matches = stats.matches + ((a === b) ? 1 : 0);
+          const corr = (2 * matches - total) / total;
+          return [...prev, { time: now, corr }];
+        });
         return;
       }
     } catch (err) {
@@ -342,11 +360,13 @@ export default function BellSimulator() {
     if (pA) pA.outcome = outA as 1 | -1;
     if (pB) pB.outcome = outB as 1 | -1;
     setStats(prev => ({ total: prev.total + 1, matches: prev.matches + (outA === outB ? 1 : 0) }));
-    const newTotal = stats.total + 1;
-    if (newTotal % 50 === 0) {
-      const now = performance.now();
-      setReport(prev => [...prev.slice(-500), { time: now, corr: correlation }]);
-    }
+    const now = performance.now();
+    setReport(prev => {
+      const total = prev.length + 1;
+      const matches = stats.matches + (outA === outB ? 1 : 0);
+      const corr = (2 * matches - total) / total;
+      return [...prev, { time: now, corr }];
+    });
   }
 
   // Mouse handlers for rotation
@@ -381,6 +401,22 @@ export default function BellSimulator() {
           <input type="range" min={0} max={360} step={5} value={angleB} onChange={(e)=>setAngleB(Number(e.target.value))} style={{ width: "100%" }} />
         </div>
 
+        <div style={{ marginTop: 12 }}>
+          <label style={{ color: "#38bdf8", fontWeight: 700, display: "block" }}>
+            Photon pairs: {photonCount}
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={5000}
+            step={10}
+            value={photonCount}
+            onChange={(e) => setPhotonCount(Number(e.target.value))}
+            style={{ width: "100%", background: "#0d1117", color: "white", border: "1px solid #30363d", borderRadius: 6, padding: 6 }}
+            disabled={isPlaying}
+          />
+        </div>
+
         <div style={{ marginTop: 10, color: "#8b949e" }}>
           Δ = <strong style={{ color: "white" }}>{Math.abs(angleA - angleB)}°</strong>
         </div>
@@ -390,8 +426,11 @@ export default function BellSimulator() {
             {isPlaying ? "⏹ СТОП" : "▶ ЗАПУСТИТИ"}
           </button>
           <button onClick={()=>{
-            setStats({total:0,matches:0});
+            setStats({ total: 0, matches: 0 });
             setReport([]);
+            setEmitted(0);
+            setShowTable(false);
+            setIsPlaying(false);
           }} style={{ width: 48, background: "#30363d", borderRadius: 6, color: "white", border: "none", cursor: "pointer" }}>↺</button>
         </div>
 
@@ -443,11 +482,14 @@ export default function BellSimulator() {
           <h4 style={{margin:0, color:"#38bdf8"}}>Correlation vs Time</h4>
           <div style={{height:120, marginTop:10, background:"#111", borderRadius:6, border:"1px solid #222", padding:4}}>
             <svg width="100%" height="100%">
-              {report.length > 1 &&
+              {report.length >= 1 &&
                 report.map((p, i) => {
                   if (i === 0) return null;
-                  const x1 = (report[i-1].time - report[0].time) / (report[report.length-1].time - report[0].time) * 100;
-                  const x2 = (p.time - report[0].time) / (report[report.length-1].time - report[0].time) * 100;
+                  const t0 = report[0].time;
+                  const tN = report[report.length - 1].time;
+                  const denom = Math.max(1, tN - t0);
+                  const x1 = ((report[i-1].time - t0) / denom) * 100;
+                  const x2 = ((p.time - t0) / denom) * 100;
                   const y1 = 60 - report[i-1].corr * 50;
                   const y2 = 60 - p.corr * 50;
                   return (
@@ -469,59 +511,95 @@ export default function BellSimulator() {
         <div style={{marginTop:20, padding:12, background:"#0d1117", borderRadius:8, border:"1px solid #30363d"}}>
           <h4 style={{margin:0, color:"#38bdf8"}}>Data Table</h4>
           <div id="table-placeholder" style={{height:100, marginTop:10, overflowY:"auto", background:"#111", borderRadius:6, border:"1px solid #222", padding:6}}>
+            {!showTable && (
+              <div style={{ fontSize: 12, color: "#8b949e", textAlign: "center", paddingTop: 30 }}>
+                Run the experiment to completion to display results
+              </div>
+            )}
             <table style={{width:"100%", fontSize:12, color:"#ccc"}}>
               <thead>
                 <tr><th align="left">Index</th><th align="left">Correlation</th></tr>
               </thead>
               <tbody>
-                {report.slice(-10).map((r, idx) => (
-                  <tr key={idx}>
-                    <td>{report.length - 10 + idx}</td>
-                    <td>{r.corr.toFixed(3)}</td>
-                  </tr>
-                ))}
+                {report.length > 0 &&
+                  report.map((r, idx) => (
+                    <tr key={idx}>
+                      <td>{idx + 1}</td>
+                      <td>{r.corr.toFixed(3)}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
         </div>
 
-        <div style={{marginTop:20, padding:12, background:"#0d1117", borderRadius:8, border:"1px solid #30363d"}}>
-          <h4 style={{margin:0, color:"#38bdf8"}}>Physics Explanation</h4>
-          <p style={{fontSize:12, color:"#ccc", marginTop:10}}>
-            Here will be an interactive explanation of Bell inequality, entanglement, and correlation functions.
-          </p>
-        </div>
       </div>
 
       <div style={{ flex: 1, position: "relative", overflow: "hidden", cursor: isDragging.current ? "grabbing" : "grab" }}
         onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
         <canvas ref={canvasRef} style={{ width: "100%", height: "100%" }} />
         <div style={{ position: "absolute", bottom: 18, left: 18, color: "rgba(255,255,255,0.4)" }}>🖱️ Drag to rotate</div>
-        <div style={{ position:"absolute", bottom:0, left:0, width:"100%", background:"#111a", padding:16, borderTop:"1px solid #333" }}>
-          <h3 style={{ color:"#38bdf8", marginTop:0 }}>Live Correlation</h3>
-          <div style={{height:120, background:"#0006", border:"1px solid #333", borderRadius:6, padding:4}}>
-            <svg width="100%" height="100%">
-              {report.length > 1 &&
-                report.map((p, i) => {
-                  if (i === 0) return null;
-                  const x1 = (i - 1) * (100 / report.length);
-                  const x2 = i * (100 / report.length);
-                  const y1 = 60 - report[i - 1].corr * 50;
-                  const y2 = 60 - p.corr * 50;
-                  return (
-                    <line
-                      key={i}
-                      x1={`${x1}%`}
-                      y1={y1}
-                      x2={`${x2}%`}
-                      y2={y2}
-                      stroke="#7ee787"
-                      strokeWidth="2"
-                    />
-                  );
-                })}
-            </svg>
-          </div>
+        <div style={{
+          width: "100%",
+          maxWidth: 900,
+          margin: "40px auto",
+          padding: "24px",
+          background: "#0d1117",
+          border: "1px solid #30363d",
+          borderRadius: 12,
+          color: "#c9d1d9",
+          lineHeight: 1.7
+        }}>
+          <h2 style={{ color: "#38bdf8", textAlign: "center" }}>
+            Детальне пояснення симуляції квантового експерименту Белла
+          </h2>
+
+          <p>
+            <strong>Що відбувається в симуляції</strong><br />
+            Моделюється експеримент Белла з квантово заплутаними фотонами.
+            Джерело в центрі випромінює пари фотонів у протилежних напрямках
+            до двох детекторів — Alice та Bob.
+          </p>
+
+          <p>
+            Кожен фотон проходить через поляризаційний аналізатор:
+            Alice з кутом α, Bob з кутом β.
+            Результат вимірювання —
+            A і B можуть набувати лише двох значень: +1 або −1.
+            Значення не існують до вимірювання і виникають лише під час детекції.
+          </p>
+
+          <p>
+            <strong>Походження експерименту</strong><br />
+            Експеримент запропонований Джоном Беллом (1964)
+            як відповідь на парадокс Ейнштейна–Подольського–Розена (EPR).
+            Белл довів, що жодна локальна теорія прихованих змінних
+            не може відтворити всі передбачення квантової механіки.
+          </p>
+
+          <p>
+            <strong>Ідея нерівності Белла</strong><br />
+            Вводиться кореляційна функція:
+            E(α, β) = ⟨A · B⟩.
+            Для класичних локальних теорій |S| ≤ 2 (форма CHSH),
+            тоді як квантова механіка передбачає
+            S = 2√2 ≈ 2.828.
+          </p>
+
+          <p>
+            <strong>Чому виникає квантова кореляція</strong><br />
+            Система описується синглетним станом:
+            |ψ⟩ = (|01⟩ − |10⟩) / √2.
+            Окремі результати випадкові,
+            але їхня кореляція строго визначена:
+            E(α, β) = −cos(α − β).
+          </p>
+
+          <p style={{ color: "#7ee787" }}>
+            Саме ця формула реалізується в симуляції,
+            що приводить до порушення нерівності Белла
+            та демонструє фундаментальну нелокальність квантової механіки.
+          </p>
         </div>
       </div>
     </div>

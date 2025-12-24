@@ -27,6 +27,11 @@ import OscillatorSimulator from "./components/OscillatorSimulator";
 import BellSimulator from "./components/BellSimulator";
 import SternGerlachExperiment from "./components/SternGerlachExperiment"; // <--- IMPORT
 import CentrifugalSimulator from "./components/classic/CentrifugalSimulator";
+import GyroscopeSimulator from "./components/classic/GyroscopeSimulator";
+import KeplerSimulator from "./components/classic/KeplerSimulator";
+import HydrogenAtomSimulator from "./components/HydrogenSimulator";
+import NewtonSimulator from "./components/classic/NewtonSimulator";
+
 
 
 // Рівень 5 (Класична фізика - підрозділи)
@@ -77,13 +82,16 @@ export default function App() {
         <Route path="/simulation/barrier" element={<BarrierSimulator />} />
         <Route path="/simulation/wavepacket" element={<WavePacketSimulator />} />
         <Route path="/simulation/oscillator" element={<OscillatorSimulator />} />
+        <Route path="/simulation/hydrogen" element={<HydrogenAtomSimulator />} />
         {/* 5. Експеримент Штерна-Герлаха (НОВЕ) */}
         <Route path="/simulation/bell" element={<BellSimulator />} />
         <Route path="/simulation/stern-gerlach" element={<SternGerlachExperiment />} /> {/* <--- ROUTE */}
 
            {/* Симулятор механіки */}
         <Route path="/simulation/centrifugal" element={<CentrifugalSimulator />} />
-        
+        <Route path="/classic/gyroscope" element={<GyroscopeSimulator />} />
+        <Route path="/classic/kepler" element={<KeplerSimulator />} />
+        <Route path="/classic/newton" element={<NewtonSimulator />} />
       </Routes>
     </Router>
   );
